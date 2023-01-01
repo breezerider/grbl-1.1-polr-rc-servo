@@ -111,6 +111,14 @@
   #error "Override refresh must be greater than zero."
 #endif
 
+#if defined(RC_SERVO) && !defined(VARIABLE_SPINDLE)
+  #error "Use of servo motor on spindle pins requires variable spindle output voltage."
+#endif
+
+#if defined(RC_SERVO) && defined(ENABLE_PIECEWISE_LINEAR_SPINDLE)
+  #error "Use of servo motor on spindle pins is incompatible with piecewise linear model of the spindle PWM."
+#endif
+
 // ---------------------------------------------------------------------------------------
 
 #endif

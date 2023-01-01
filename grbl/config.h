@@ -30,6 +30,11 @@
 #include "grbl.h" // For Arduino IDE compatibility.
 
 
+
+//Spindle is controled by a servo.Use the PIN D11 to drive the servo. Use the commands M03 Sxxx (xxx between 0 and 255)
+//to rotate the servo between 0-180. The command M05 turn the servo to zero degrees.
+#define RC_SERVO
+
 // Define CPU pin map and default settings.
 // NOTE: OEMs can avoid the need to maintain/update the defaults.h and cpu_map.h files and use only
 // one configuration file by placing their specific defaults and pin map at the bottom of this file.

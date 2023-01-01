@@ -21,6 +21,30 @@
 
 #include "grbl.h"
 
+/* RC-Servo PWM modification: switch between 0.6ms and 2.5ms pulse-width at 61Hz
+   Prescaler 1024 = 15625Hz / 256Steps =  61Hz	64µs/step -> Values 15 / 32 for 1ms / 2ms
+   Reload value = 0x07
+   Replace this file in C:\Program Files (x86)\Arduino\libraries\GRBL
+
+   NOTE
+   ====
+
+   Make sure that the line below exists in cpu_map.h (introduce 61Hz 1/1024 prescaler in line 140 for servo)
+
+   #define SPINDLE_TCCRB_INIT_MASK      ((1<<CS22) | (1<<CS21) | (1<<CS20))
+
+   Make sure that the line below exists in config.h (switch on variable spindle)
+
+   #define VARIABLE_SPINDLE
+
+*/
+
+#ifdef RC_SERVO                                                                                         // RC Servo
+#define RC_SERVO_SHORT      15      // set min pulse duration to (7 = 0.5ms, 15 = 1.03ms, 20=1.40ms)    // RC Servo
+#define RC_SERVO_LONG       31      // set max pulse duration (38 = 2.49ms, 31 = 2.05ms)                // RC Servo
+#define RC_SERVO_RANGE      (RC_SERVO_LONG-RC_SERVO_SHORT)                                              // RC Servo
+// #define RC_SERVO_INVERT  1       // Uncomment to invert servo direction                              // RC Servo
+#endif                                                                                                  // RC Servo
 
 #ifdef VARIABLE_SPINDLE
   static float pwm_gradient; // Precalulated value to speed up rpm to PWM conversions.
@@ -31,7 +55,7 @@ void spindle_init()
 {
   #ifdef VARIABLE_SPINDLE
 
-    // Configure variable spindle PWM and enable pin, if requried. On the Uno, PWM and enable are
+    // Configure variable spindle PWM and enable pin, if required. On the Uno, PWM and enable are
     // combined unless configured otherwise.
     SPINDLE_PWM_DDR |= (1<<SPINDLE_PWM_BIT); // Configure as PWM output pin.
     SPINDLE_TCCRA_REGISTER = SPINDLE_TCCRA_INIT_MASK; // Configure PWM output compare timer
@@ -107,6 +131,16 @@ void spindle_stop()
       SPINDLE_ENABLE_PORT &= ~(1<<SPINDLE_ENABLE_BIT); // Set pin to low
     #endif
   #endif
+  if (!(settings.flags & BITFLAG_LASER_MODE)) {                                                         // RC Servo
+  #ifdef RC_SERVO                                                                                       // RC Servo
+    SPINDLE_TCCRA_REGISTER |= (1<<SPINDLE_COMB_BIT); // Ensure PWM output is enabled.                   // RC Servo
+    #ifdef RC_SERVO_INVERT                                                                              // RC Servo
+      SPINDLE_OCR_REGISTER = RC_SERVO_LONG;                                                             // RC Servo
+    #else                                                                                               // RC Servo
+      SPINDLE_OCR_REGISTER = RC_SERVO_SHORT;                                                            // RC Servo
+    #endif                                                                                              // RC Servo
+  #endif                                                                                                // RC Servo
+  }                                                                                                     // RC Servo
 }
 
 
@@ -129,7 +163,12 @@ void spindle_stop()
       }
     #else
       if (pwm_value == SPINDLE_PWM_OFF_VALUE) {
-        SPINDLE_TCCRA_REGISTER &= ~(1<<SPINDLE_COMB_BIT); // Disable PWM. Output voltage is zero.
+        #ifdef RC_SERVO                                                                                 // RC Servo
+        if (settings.flags & BITFLAG_LASER_MODE)                                                        // RC Servo
+            spindle_stop();                                                                             // RC Servo
+        else                                                                                            // RC Servo
+        #endif                                                                                          // RC Servo
+            SPINDLE_TCCRA_REGISTER &= ~(1<<SPINDLE_COMB_BIT); // Disable PWM. Output voltage is zero.
       } else {
         SPINDLE_TCCRA_REGISTER |= (1<<SPINDLE_COMB_BIT); // Ensure PWM output is enabled.
       }
@@ -206,6 +245,17 @@ void spindle_stop()
         sys.spindle_speed = rpm;
         pwm_value = floor((rpm-settings.rpm_min)*pwm_gradient) + SPINDLE_PWM_MIN_VALUE;
       }
+
+      #ifdef RC_SERVO                                                                                       // RC Servo
+      if (!(settings.flags & BITFLAG_LASER_MODE)) {                                                         // RC Servo
+          #ifdef RC_SERVO_INVERT                                                                            // RC Servo
+            pwm_value = floor(RC_SERVO_LONG - rpm*(RC_SERVO_RANGE/(settings.rpm_max-settings.rpm_min)));    // RC Servo
+          #else                                                                                             // RC Servo
+            pwm_value = floor(rpm*(RC_SERVO_RANGE/(settings.rpm_max-settings.rpm_min))+RC_SERVO_SHORT);     // RC Servo
+          #endif                                                                                            // RC Servo
+      }                                                                                                     // RC Servo
+      #endif                                                                                                // RC Servo
+
       return(pwm_value);
     }
     
