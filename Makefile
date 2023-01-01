@@ -19,7 +19,7 @@
 
 # This is a prototype Makefile. Modify it according to your needs.
 # You should at least check the settings for
-# DEVICE ....... The AVR device you compile for
+# MCU .......... The AVR microcontroller unit you compile for
 # CLOCK ........ Target AVR clock rate in Hertz
 # OBJECTS ...... The object files created from your source files. This list is
 #                usually the same as the list of source files with suffix ".o".
@@ -28,11 +28,13 @@
 #                is connected.
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
-DEVICE     ?= atmega328p
-CLOCK      = 16000000
-PROGRAMMER ?= -c avrisp2 -P usb
+MCU        ?= atmega328p
+PORT       ?= /dev/ttyUSB0
+BAUD       ?= 115200
+CLOCK      ?= 16000000
+PROGRAMMER ?= -c arduino -P$(PORT) -b$(BAUD) -D
 SOURCE    = main.c motion_control.c gcode.c spindle_control.c coolant_control.c serial.c \
-             protocol.c stepper.c eeprom.c settings.c planner.c nuts_bolts.c limits.c jog.c\
+             protocol.c stepper.c eeprom.c settings.c planner.c nuts_bolts.c limits.c jog.c \
              print.c probe.c report.c system.c
 BUILDDIR = build
 SOURCEDIR = grbl
@@ -41,13 +43,16 @@ FUSES      = -U hfuse:w:0xd2:m -U lfuse:w:0xff:m
 
 # Tune the lines below only if you know what you are doing:
 
-AVRDUDE = avrdude $(PROGRAMMER) -p $(DEVICE) -B 10 -F
+AVRDUDE = avrdude -C/etc/avrdude.conf -v -p $(MCU) $(PROGRAMMER)
 
 # Compile flags for avr-gcc v4.8.1. Does not produce -flto warnings.
-# COMPILE = avr-gcc -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(DEVICE) -I. -ffunction-sections
+# COMPILE = avr-gcc -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(MCU) -I. -ffunction-sections
 
 # Compile flags for avr-gcc v4.9.2 compatible with the IDE. Or if you don't care about the warnings. 
-COMPILE = avr-gcc -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(DEVICE) -I. -ffunction-sections -flto
+COMPILE = avr-gcc -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(MCU) -I. -ffunction-sections -flto
+#-Og -g -g3 -gstabs
+# Compile flags for avr-gcc v7.5.0+
+COMPILE += -fdata-sections -fno-exceptions -fno-inline-small-functions -fno-split-wide-types -fno-tree-scev-cprop -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums
 
 
 OBJECTS = $(addprefix $(BUILDDIR)/,$(notdir $(SOURCE:.c=.o)))
@@ -66,9 +71,9 @@ $(BUILDDIR)/%.o: $(SOURCEDIR)/%.c
 # compatibility define the file type manually.
 
 #.c.s:
-	$(COMPILE) -S $< -o $(BUILDDIR)/$@
+#	$(COMPILE) -S $< -o $(BUILDDIR)/$@
 
-flash:	all
+flash: all grbl.hex
 	$(AVRDUDE) -U flash:w:grbl.hex:i
 
 fuse:
@@ -86,17 +91,18 @@ clean:
 
 # file targets:
 $(BUILDDIR)/main.elf: $(OBJECTS)
-	$(COMPILE) -o $(BUILDDIR)/main.elf $(OBJECTS) -lm -Wl,--gc-sections
+	$(COMPILE) -o $(BUILDDIR)/main.elf $(OBJECTS) -lm -Wl,--gc-sections -Wl,--relax
 
 grbl.hex: $(BUILDDIR)/main.elf
 	rm -f grbl.hex
 	avr-objcopy -j .text -j .data -O ihex $(BUILDDIR)/main.elf grbl.hex
 	avr-size --format=berkeley $(BUILDDIR)/main.elf
+	avr-size -C --mcu=$(MCU) $(BUILDDIR)/main.elf
 # If you have an EEPROM section, you must also create a hex file for the
 # EEPROM and add it to the "flash" target.
 
 # Targets for code debugging and analysis:
-disasm:	main.elf
+disasm: main.elf
 	avr-objdump -d $(BUILDDIR)/main.elf
 
 cpp:
