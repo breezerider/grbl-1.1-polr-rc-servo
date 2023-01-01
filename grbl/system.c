@@ -21,6 +21,17 @@
 #include "grbl.h"
 
 
+void system_initialize_position(int32_t *position) {
+#ifndef POLAR
+  memset(position,0,sizeof(position)); // Clear machine position.
+#else
+  position[X_AXIS] = DEFAULT_X_OFFSET * settings.steps_per_mm[X_AXIS];
+  position[Y_AXIS] = DEFAULT_Y_OFFSET * settings.steps_per_mm[Y_AXIS];
+  position[Z_AXIS] = DEFAULT_Z_OFFSET * settings.steps_per_mm[Z_AXIS];
+#endif
+}
+
+
 void system_init()
 {
   CONTROL_DDR &= ~(CONTROL_MASK); // Configure as input pins
@@ -325,6 +336,30 @@ void system_convert_array_steps_to_mpos(float *position, int32_t *steps)
   int32_t system_convert_corexy_to_y_axis_steps(int32_t *steps)
   {
     return( (steps[A_MOTOR] - steps[B_MOTOR])/2 );
+  }
+#endif
+
+
+/* Convert from cartesian coordinates (x,y) to polar coordinates (a,b)
+ *
+ *   B___d___A      |0
+ *    \     /       |
+ * l_B \   / l_A    | y
+ *      \ /         |
+ *   ____+___|______|
+ *   x       0
+ *
+ */
+#ifdef POLAR
+  void system_convert_xy_to_polar(int32_t *xy, float *polar)
+  {
+    polar[A_MOTOR] = hypot_f(xy[X_AXIS], xy[Y_AXIS]);
+    polar[B_MOTOR] = hypot_f(settings.distance - xy[X_AXIS], xy[Y_AXIS]);
+  }
+  void system_convert_xy_to_polar_f(float *xy, float *polar)
+  {
+    polar[A_MOTOR] = hypot_f(xy[X_AXIS], xy[Y_AXIS]);
+    polar[B_MOTOR] = hypot_f(settings.distance - xy[X_AXIS], xy[Y_AXIS]);
   }
 #endif
 

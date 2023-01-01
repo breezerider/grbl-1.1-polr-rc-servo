@@ -346,6 +346,16 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
     target_steps[B_MOTOR] = lround(target[B_MOTOR]*settings.steps_per_mm[B_MOTOR]);
     block->steps[A_MOTOR] = labs((target_steps[X_AXIS]-position_steps[X_AXIS]) + (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
     block->steps[B_MOTOR] = labs((target_steps[X_AXIS]-position_steps[X_AXIS]) - (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
+  #elif defined(POLAR)
+    float polar[2];
+    system_convert_xy_to_polar_f(target, polar);
+    target_steps[A_MOTOR] = lround(polar[A_MOTOR]*settings.steps_per_mm[A_MOTOR]);
+    target_steps[B_MOTOR] = lround(polar[B_MOTOR]*settings.steps_per_mm[B_MOTOR]);
+    system_convert_xy_to_polar(position_steps, polar);
+    polar[A_MOTOR] = (target_steps[A_MOTOR] - polar[A_MOTOR]);
+    polar[B_MOTOR] = (target_steps[B_MOTOR] - polar[B_MOTOR]);
+    block->steps[A_MOTOR] = labs(polar[A_MOTOR]);
+    block->steps[B_MOTOR] = labs(polar[B_MOTOR]);
   #endif
 
   for (idx=0; idx<N_AXIS; idx++) {
@@ -365,12 +375,21 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
       } else {
         delta_mm = (target_steps[idx] - position_steps[idx])/settings.steps_per_mm[idx];
       }
+    #elif defined(POLAR)
+      if ( idx == Z_AXIS ) {
+        target_steps[idx] = lround(target[idx]*settings.steps_per_mm[idx]);
+        block->steps[idx] = labs(target_steps[idx]-position_steps[idx]);
+        delta_mm = (target_steps[idx] - position_steps[idx])/settings.steps_per_mm[idx];
+      } else {
+        delta_mm = polar[idx] / settings.steps_per_mm[idx];
+      }
+      block->step_event_count = max(block->step_event_count, block->steps[idx]);
     #else
       target_steps[idx] = lround(target[idx]*settings.steps_per_mm[idx]);
       block->steps[idx] = labs(target_steps[idx]-position_steps[idx]);
       block->step_event_count = max(block->step_event_count, block->steps[idx]);
       delta_mm = (target_steps[idx] - position_steps[idx])/settings.steps_per_mm[idx];
-	  #endif
+    #endif
     unit_vec[idx] = delta_mm; // Store unit vector numerator
 
     // Set direction bits. Bit enabled always means direction is negative.

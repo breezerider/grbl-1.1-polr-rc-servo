@@ -44,7 +44,7 @@ int main(void)
   stepper_init();  // Configure stepper pins and interrupt timers
   system_init();   // Configure pinout pins and pin-change interrupt
 
-  memset(sys_position,0,sizeof(sys_position)); // Clear machine position.
+  system_initialize_position(sys_position);
   sei(); // Enable interrupts
 
   // Initialize system state.

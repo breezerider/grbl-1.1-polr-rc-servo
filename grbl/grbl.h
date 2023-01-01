@@ -119,6 +119,10 @@
   #error "Use of servo motor on spindle pins is incompatible with piecewise linear model of the spindle PWM."
 #endif
 
+#if defined(POLAR) && defined(COREXY)
+  #error "This implementation of polar coordinate machines does not support CoreXY machines."
+#endif
+
 // ---------------------------------------------------------------------------------------
 
 #endif

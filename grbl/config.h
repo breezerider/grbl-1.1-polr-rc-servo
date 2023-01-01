@@ -30,6 +30,16 @@
 #include "grbl.h" // For Arduino IDE compatibility.
 
 
+/* This option enables code for two-motor polar plotter, AKA polargraphs.
+ * This feature requires that distance (d) between the two motors is known and remains constant during use.
+ *   B___d___A      | 0
+ *    \     /       |
+ *  l_B\   /l_A     | y
+ *      \ /         |
+ *   ____+___|______|
+ *      x    0
+ */
+#define POLAR
 
 //Spindle is controled by a servo.Use the PIN D11 to drive the servo. Use the commands M03 Sxxx (xxx between 0 and 255)
 //to rotate the servo between 0-180. The command M05 turn the servo to zero degrees.
@@ -39,7 +49,10 @@
 // NOTE: OEMs can avoid the need to maintain/update the defaults.h and cpu_map.h files and use only
 // one configuration file by placing their specific defaults and pin map at the bottom of this file.
 // If doing so, simply comment out these two defines and see instructions below.
-#define DEFAULTS_GENERIC
+// #define DEFAULTS_GENERIC
+
+// Default settings. Used when resetting EEPROM. Change to desired name in defaults.h
+#define DEFAULTS_POLAR
 #define CPU_MAP_ATMEGA328P // Arduino Uno CPU
 
 // Serial baud rate
