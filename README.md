@@ -1,3 +1,8 @@
+This fork is an attempt at a working implementation of two motor polar plotters in grbl.
+This code is based on other peoples' work as mentioned in the respective commit messages.
+
+### Original README follows
+
 ![GitHub Logo](https://github.com/gnea/gnea-Media/blob/master/Grbl%20Logo/Grbl%20Logo%20250px.png?raw=true)
 
 ***
