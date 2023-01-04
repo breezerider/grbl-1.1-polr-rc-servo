@@ -21,17 +21,6 @@
 #include "grbl.h"
 
 
-void system_initialize_position(int32_t *position) {
-#ifndef POLAR
-  memset(position,0,sizeof(position)); // Clear machine position.
-#else
-  position[X_AXIS] = DEFAULT_X_OFFSET * settings.steps_per_mm[X_AXIS];
-  position[Y_AXIS] = DEFAULT_Y_OFFSET * settings.steps_per_mm[Y_AXIS];
-  position[Z_AXIS] = DEFAULT_Z_OFFSET * settings.steps_per_mm[Z_AXIS];
-#endif
-}
-
-
 void system_init()
 {
   CONTROL_DDR &= ~(CONTROL_MASK); // Configure as input pins
@@ -310,6 +299,14 @@ float system_convert_axis_steps_to_mpos(int32_t *steps, uint8_t idx)
     } else {
       pos = steps[idx]/settings.steps_per_mm[idx];
     }
+  #elif defined(POLAR)
+    if (idx==X_AXIS) {
+      pos = (float)system_convert_polar_to_x_axis_steps(steps) / settings.steps_per_mm[idx];
+    } else if (idx==Y_AXIS) {
+      pos = (float)system_convert_polar_to_y_axis_steps(steps) / settings.steps_per_mm[idx];
+    } else {
+      pos = steps[idx]/settings.steps_per_mm[idx];
+    }
   #else
     pos = steps[idx]/settings.steps_per_mm[idx];
   #endif
@@ -351,15 +348,37 @@ void system_convert_array_steps_to_mpos(float *position, int32_t *steps)
  *
  */
 #ifdef POLAR
-  void system_convert_xy_to_polar(int32_t *xy, float *polar)
+  int32_t system_convert_polar_to_x_axis_steps(const int32_t *ab_steps)
   {
-    polar[A_MOTOR] = hypot_f(xy[X_AXIS], xy[Y_AXIS]);
-    polar[B_MOTOR] = hypot_f(settings.distance - xy[X_AXIS], xy[Y_AXIS]);
+    float a = ab_steps[A_MOTOR] / settings.steps_per_mm[A_MOTOR],
+          b = ab_steps[B_MOTOR] / settings.steps_per_mm[B_MOTOR],
+          d = settings.distance;
+
+    return (a*a - b*b + d*d)/(2*d) * settings.steps_per_mm[X_AXIS];
   }
-  void system_convert_xy_to_polar_f(float *xy, float *polar)
+  int32_t system_convert_polar_to_y_axis_steps(const int32_t *ab_steps)
   {
-    polar[A_MOTOR] = hypot_f(xy[X_AXIS], xy[Y_AXIS]);
-    polar[B_MOTOR] = hypot_f(settings.distance - xy[X_AXIS], xy[Y_AXIS]);
+    float a = ab_steps[A_MOTOR] / settings.steps_per_mm[A_MOTOR],
+          b = ab_steps[B_MOTOR] / settings.steps_per_mm[B_MOTOR],
+          d = settings.distance, apd = a + d, amd = a - d;
+
+    return sqrtf((b*b - amd*amd)*(apd*apd - b*b))/(2*d) * settings.steps_per_mm[Y_AXIS];
+  }
+  void system_convert_polar_to_xyz_steps(const int32_t *abz_steps,
+                                         int32_t *xyz_steps)
+  {
+    xyz_steps[X_AXIS] = system_convert_polar_to_x_axis_steps(abz_steps);
+    xyz_steps[Y_AXIS] = system_convert_polar_to_y_axis_steps(abz_steps);
+    xyz_steps[Z_AXIS] = abz_steps[Z_AXIS];
+  }
+  void system_convert_xyz_to_polar(const float *xyz,
+                                   float *abz)
+  {
+    float x = xyz[X_AXIS],
+          y = xyz[Y_AXIS];
+    abz[A_MOTOR] = hypot_f(x, y);
+    abz[B_MOTOR] = hypot_f(settings.distance - x, y);
+    abz[Z_AXIS] = xyz[Z_AXIS];
   }
 #endif
 

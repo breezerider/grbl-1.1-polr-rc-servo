@@ -336,6 +336,10 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
       position_steps[X_AXIS] = system_convert_corexy_to_x_axis_steps(sys_position);
       position_steps[Y_AXIS] = system_convert_corexy_to_y_axis_steps(sys_position);
       position_steps[Z_AXIS] = sys_position[Z_AXIS];
+    #elif defined(POLAR)
+      position_steps[X_AXIS] = system_convert_polar_to_x_axis_steps(sys_position);
+      position_steps[Y_AXIS] = system_convert_polar_to_y_axis_steps(sys_position);
+      position_steps[Z_AXIS] = sys_position[Z_AXIS];
     #else
       memcpy(position_steps, sys_position, sizeof(sys_position)); 
     #endif
@@ -347,15 +351,10 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
     block->steps[A_MOTOR] = labs((target_steps[X_AXIS]-position_steps[X_AXIS]) + (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
     block->steps[B_MOTOR] = labs((target_steps[X_AXIS]-position_steps[X_AXIS]) - (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
   #elif defined(POLAR)
-    float polar[2];
-    system_convert_xy_to_polar_f(target, polar);
-    target_steps[A_MOTOR] = lround(polar[A_MOTOR]*settings.steps_per_mm[A_MOTOR]);
-    target_steps[B_MOTOR] = lround(polar[B_MOTOR]*settings.steps_per_mm[B_MOTOR]);
-    system_convert_xy_to_polar(position_steps, polar);
-    polar[A_MOTOR] = (target_steps[A_MOTOR] - polar[A_MOTOR]);
-    polar[B_MOTOR] = (target_steps[B_MOTOR] - polar[B_MOTOR]);
-    block->steps[A_MOTOR] = labs(polar[A_MOTOR]);
-    block->steps[B_MOTOR] = labs(polar[B_MOTOR]);
+    float target_abz[N_AXIS];
+    system_convert_xyz_to_polar(target, target_abz);
+    int32_t position_steps_xyz[N_AXIS];
+    system_convert_polar_to_xyz_steps(position_steps, position_steps_xyz);
   #endif
 
   for (idx=0; idx<N_AXIS; idx++) {
@@ -376,13 +375,10 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
         delta_mm = (target_steps[idx] - position_steps[idx])/settings.steps_per_mm[idx];
       }
     #elif defined(POLAR)
-      if ( idx == Z_AXIS ) {
-        target_steps[idx] = lround(target[idx]*settings.steps_per_mm[idx]);
-        block->steps[idx] = labs(target_steps[idx]-position_steps[idx]);
-        delta_mm = (target_steps[idx] - position_steps[idx])/settings.steps_per_mm[idx];
-      } else {
-        delta_mm = polar[idx] / settings.steps_per_mm[idx];
-      }
+      delta_mm = (lround(target[idx]*settings.steps_per_mm[idx])-position_steps_xyz[idx])/settings.steps_per_mm[idx];
+      target_steps[idx] = lround(target_abz[idx]*settings.steps_per_mm[idx]);
+      int32_t steps_diff = target_steps[idx] - position_steps[idx];
+      block->steps[idx] = labs(steps_diff);
       block->step_event_count = max(block->step_event_count, block->steps[idx]);
     #else
       target_steps[idx] = lround(target[idx]*settings.steps_per_mm[idx]);
@@ -393,7 +389,12 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
     unit_vec[idx] = delta_mm; // Store unit vector numerator
 
     // Set direction bits. Bit enabled always means direction is negative.
-    if (delta_mm < 0.0 ) { block->direction_bits |= get_direction_pin_mask(idx); }
+#ifndef POLAR
+    if (delta_mm < 0.0)
+#else
+    if (steps_diff < 0)
+#endif
+    { block->direction_bits |= get_direction_pin_mask(idx); }
   }
 
   // Bail if this is a zero-length block. Highly unlikely to occur.

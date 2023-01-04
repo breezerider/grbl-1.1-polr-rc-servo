@@ -218,23 +218,35 @@ void mc_homing_cycle(uint8_t cycle_mask)
 
   limits_disable(); // Disable hard limits pin change register for cycle duration
 
-  // -------------------------------------------------------------------------------------
-  // Perform homing routine. NOTE: Special motion case. Only system reset works.
-  
-  #ifdef HOMING_SINGLE_AXIS_COMMANDS
-    if (cycle_mask) { limits_go_home(cycle_mask); } // Perform homing cycle based on mask.
-    else
+  #ifndef POLAR
+    // -------------------------------------------------------------------------------------
+    // Perform homing routine. NOTE: Special motion case. Only system reset works.
+    #ifdef HOMING_SINGLE_AXIS_COMMANDS
+      if (cycle_mask) { limits_go_home(cycle_mask); } // Perform homing cycle based on mask.
+      else
+    #endif
+    {
+      // Search to engage all axes limit switches at faster homing seek rate.
+      limits_go_home(HOMING_CYCLE_0);  // Homing cycle 0
+      #ifdef HOMING_CYCLE_1
+        limits_go_home(HOMING_CYCLE_1);  // Homing cycle 1
+      #endif
+      #ifdef HOMING_CYCLE_2
+        limits_go_home(HOMING_CYCLE_2);  // Homing cycle 2
+      #endif
+    }
+  #else
+    // Bypass homing cycles, just reset system position to a preset intial point
+    float xyz[N_AXIS] = {
+      DEFAULT_X_OFFSET,
+      DEFAULT_Y_OFFSET,
+      DEFAULT_Z_OFFSET
+    }, abz[N_AXIS];
+    system_convert_xyz_to_polar(xyz, abz);
+    sys_position[A_MOTOR] = abz[A_MOTOR] * settings.steps_per_mm[A_MOTOR];
+    sys_position[B_MOTOR] = abz[B_MOTOR] * settings.steps_per_mm[B_MOTOR];
+    sys_position[Z_AXIS] =  abz[Z_AXIS] * settings.steps_per_mm[Z_AXIS];
   #endif
-  {
-    // Search to engage all axes limit switches at faster homing seek rate.
-    limits_go_home(HOMING_CYCLE_0);  // Homing cycle 0
-    #ifdef HOMING_CYCLE_1
-      limits_go_home(HOMING_CYCLE_1);  // Homing cycle 1
-    #endif
-    #ifdef HOMING_CYCLE_2
-      limits_go_home(HOMING_CYCLE_2);  // Homing cycle 2
-    #endif
-  }
 
   protocol_execute_realtime(); // Check for reset and set system abort.
   if (sys.abort) { return; } // Did not complete. Alarm state set by mc_alarm.
