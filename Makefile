@@ -48,11 +48,12 @@ AVRDUDE = avrdude -C/etc/avrdude.conf -v -p $(MCU) $(PROGRAMMER)
 # Compile flags for avr-gcc v4.8.1. Does not produce -flto warnings.
 # COMPILE = avr-gcc -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(MCU) -I. -ffunction-sections
 
-# Compile flags for avr-gcc v4.9.2 compatible with the IDE. Or if you don't care about the warnings. 
-COMPILE = avr-gcc -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(MCU) -I. -ffunction-sections -flto
-#-Og -g -g3 -gstabs
+# Compile flags for avr-gcc v4.9.2 compatible with the IDE. Or if you don't care about the warnings.
+AVR_DEFS = -DF_CPU=$(CLOCK)
+COMPILE = avr-gcc -Wall -Os -mmcu=$(MCU) $(AVR_DEFS) -I.
+#-Og -g -g3 -gdwarf-3
 # Compile flags for avr-gcc v7.5.0+
-COMPILE += -fdata-sections -fno-exceptions -fno-inline-small-functions -fno-split-wide-types -fno-tree-scev-cprop -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums
+COMPILE += -ffunction-sections -flto -fdata-sections -fno-exceptions -fno-inline-small-functions -fno-split-wide-types -fno-tree-scev-cprop -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums
 
 
 OBJECTS = $(addprefix $(BUILDDIR)/,$(notdir $(SOURCE:.c=.o)))
@@ -73,7 +74,7 @@ $(BUILDDIR)/%.o: $(SOURCEDIR)/%.c
 #.c.s:
 #	$(COMPILE) -S $< -o $(BUILDDIR)/$@
 
-flash: all grbl.hex
+flash: grbl.hex
 	$(AVRDUDE) -U flash:w:grbl.hex:i
 
 fuse:
@@ -90,20 +91,22 @@ clean:
 	rm -f grbl.hex $(BUILDDIR)/*.o $(BUILDDIR)/*.d $(BUILDDIR)/*.elf
 
 # file targets:
-$(BUILDDIR)/main.elf: $(OBJECTS)
-	$(COMPILE) -o $(BUILDDIR)/main.elf $(OBJECTS) -lm -Wl,--gc-sections -Wl,--relax
+$(BUILDDIR)/grbl.elf: $(OBJECTS)
+	$(COMPILE) -o $(BUILDDIR)/grbl.elf $(OBJECTS) -lm -Wl,--gc-sections -Wl,--relax
+#-Wl,-g
 
-grbl.hex: $(BUILDDIR)/main.elf
+grbl.hex: $(BUILDDIR)/grbl.elf
 	rm -f grbl.hex
-	avr-objcopy -j .text -j .data -O ihex $(BUILDDIR)/main.elf grbl.hex
-	avr-size --format=berkeley $(BUILDDIR)/main.elf
-	avr-size -C --mcu=$(MCU) $(BUILDDIR)/main.elf
+	avr-objcopy -j .text -j .data -O ihex $(BUILDDIR)/grbl.elf $(BUILDDIR)/grbl.hex
+	cp $(BUILDDIR)/grbl.hex grbl.hex
+	avr-size --format=berkeley $(BUILDDIR)/grbl.elf
+	avr-size -C --mcu=$(MCU) $(BUILDDIR)/grbl.elf
 # If you have an EEPROM section, you must also create a hex file for the
 # EEPROM and add it to the "flash" target.
 
 # Targets for code debugging and analysis:
-disasm: main.elf
-	avr-objdump -d $(BUILDDIR)/main.elf
+disasm: grbl.elf
+	avr-objdump -d $(BUILDDIR)/grbl.elf
 
 cpp:
 	$(COMPILE) -E $(SOURCEDIR)/main.c
